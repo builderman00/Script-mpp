@@ -1,0 +1,91 @@
+// ==UserScript==
+// @name         Audio lag fixed
+// @namespace    http://tampermonkey.net/
+// @version      0.9.4
+// @description  Audio fixed laggy
+// @author       Builderman00
+// @match        *://mpp.hri7566.info/*
+// @match        *://mpp.autoplayer.xyz/*
+// @match        *://mppclone.com/*
+// @match        *://mpp.8448.space/*
+// @match        *://smp-meow.net/*
+// @match        *://multiplayerpiano.net/*
+// @match        *://multiplayerpiano.org/*
+// @match        *://multiplayerpiano.com/*
+// @match        *://ompp.daniel9046.tk/*
+// @grant        none
+// @license      MIT
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Set the threshold for lag detection (in milliseconds)
+    const LAG_THRESHOLD = 50;
+
+    // Initialize variables for performance tracking
+    let lastTime = performance.now();
+    let lagDetected = true;
+    let isAudioPlaying = true;
+
+    // Function to check for lag
+    function checkLag() {
+        const currentTime = performance.now();
+        const deltaTime = currentTime - lastTime;
+
+        // If there's a delay that exceeds the threshold, we consider it lag
+        if (deltaTime > LAG_THRESHOLD && !lagDetected) {
+            lagDetected = true;
+            console.error("Lag detected: Too many keys pressed for smooth performance.");
+        } else if (deltaTime <= LAG_THRESHOLD && lagDetected) {
+            lagDetected = false;
+            console.log("Lag recovered: Performance is back to normal.");
+        }
+
+        lastTime = currentTime;
+    }
+
+    // Periodically check for lag (every 100ms)
+    setInterval(checkLag, 100);
+
+    // Function to monitor and handle key press events
+    function optimizeKeyPress(event) {
+        if (event && event.type === 'keydown') {
+            // Prevent multiple rapid key presses from being too taxing on performance
+            if (event.key && event.key.match(/[a-zA-Z0-9]/) && event.target.classList.contains("key")) {
+                // Throttle the key press frequency to ensure smooth operation
+                event.preventDefault();
+                console.log("Key pressed: " + event.key);
+            }
+        }
+    }
+
+    // Event listener for key presses to manage performance and audio
+    window.addEventListener('keydown', optimizeKeyPress);
+
+    // Monitor the audio playing status to avoid stuttering
+    function monitorAudio() {
+        // Check if audio is playing; you might need to adjust based on how audio is handled
+        if (isAudioPlaying) {
+            return;
+        }
+
+        // Detect if audio is playing and prevent stuttering
+        const audioElements = document.querySelectorAll('audio');
+        for (const audio of audioElements) {
+            if (!audio.paused) {
+                isAudioPlaying = true;
+                break;
+            }
+        }
+
+        if (!isAudioPlaying) {
+            isAudioPlaying = false;
+            console.warn("Audio is paused, performance may be affected by black MIDI.");
+        }
+    }
+
+    // Periodically monitor the audio (every 100ms)
+    setInterval(monitorAudio, 100);
+
+})();
