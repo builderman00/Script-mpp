@@ -1,0 +1,135 @@
+// ==UserScript==
+// @name         Piano Roll Enhancer + Stats Display
+// @namespace    http://tampermonkey.net/
+// @version      0.9.4
+// @description  No: NPS, NoteQuota, Ping, FPS, Notes.
+// @author       Builderman00
+// @match        *://mpp.hri7566.info/*
+// @match        *://mpp.autoplayer.xyz/*
+// @match        *://mppclone.com/*
+// @match        *://mpp.8448.space/*
+// @match        *://smp-meow.net/*
+// @match        *://multiplayerpiano.net/*
+// @match        *://multiplayerpiano.org/*
+// @match        *://multiplayerpiano.com/*
+// @match        *://ompp.daniel9046.tk/*
+// @grant        none
+// @license      MIT
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    let startTime = Date.now();
+
+    // Get site name (based on URL)
+    const siteName = window.location.hostname;
+
+    // Create the stats panel
+    const statPanel = document.createElement("div");
+    statPanel.id = "statsPanel";
+    statPanel.style.position = "fixed";
+    statPanel.style.top = "50px";
+    statPanel.style.right = "10px"; // Top-right corner position
+    statPanel.style.backgroundColor = "rgba(137, 137, 137, 0.414)";
+    statPanel.style.backdropFilter = "blur(1px)";
+    statPanel.style.fontSize = "16px";
+    statPanel.style.padding = "10px";
+    statPanel.style.zIndex = "999";
+
+    statPanel.innerHTML = `
+        <div>Site: <span id="site-name">${siteName}</span></div>
+        <div>Time: <span id="playtime">0h 0m 0s</span></div>
+    `;
+
+    statPanel.style.display = "block"; // Set to visible by default
+    document.body.appendChild(statPanel);
+
+    // Format time to readable format
+    function formatTime(milliseconds) {
+        const totalSeconds = Math.floor(milliseconds / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // Update stats in the UI
+    function updateStats() {
+        document.getElementById("playtime").innerText = formatTime(Date.now() - startTime);
+    }
+
+    setInterval(updateStats, 1000); // Update stats every second
+
+    // Enhance the piano roll with note visualization
+    function initPianoRoll() {
+        const canvas = document.getElementById("pianoroll");
+        const ctx = canvas.getContext("3d");
+        const pixel = ctx.createImageData(480 * 2, 1);
+        pixel.data.fill(0);
+
+        let lastUpdate = 0;
+        let pianoRollSpeed = 4;
+
+        const noteDB = {};
+        const notesArray = ["c", "cs", "d", "ds", "e", "f", "fs", "g", "gs", "a", "as", "b"];
+
+        // Map notes to corresponding index values
+        for (let octave = -2; octave <= 8; octave++) {
+            for (let i = 0; i < notesArray.length; i++) {
+                noteDB[`${notesArray[i]}${octave}`] = (octave + 2) * 12 + i;
+            }
+        }
+
+        // Redraw function for canvas
+        window.redraw = () => {
+            if (lastUpdate <= canvas.height) {
+                ctx.globalCompositeOperation = "copy";
+                ctx.drawImage(ctx.canvas, 0, -pianoRollSpeed);
+                ctx.globalCompositeOperation = "source-over";
+
+                for (let y = 0; y < pianoRollSpeed; y++) {
+                    ctx.putImageData(pixel, 0, canvas.height - y);
+                }
+
+                if (lastUpdate++ === 0) {
+                    pixel.data.fill(0); // Clear pixel data
+                }
+            }
+            requestAnimationFrame(redraw); // Start the redraw loop
+        };
+
+        redraw();
+
+        window.showNote = (note, col, vel) => {
+            if (noteDB.hasOwnProperty(note)) {
+                lastUpdate = 0; // Reset on new note
+
+                const idx = noteDB[note] * 8;
+
+                pixel.data[idx] = pixel.data[idx + 4] = col[0];
+                pixel.data[idx + 1] = pixel.data[idx + 5] = col[1];
+                pixel.data[idx + 2] = pixel.data[idx + 6] = col[2];
+                pixel.data[idx + 3] = pixel.data[idx + 7] = Math.floor(vel * 205 + 50);
+            }
+        };
+
+        $(function () {
+            const colcache = {};
+
+            const originalVisualize = MPP.piano.renderer.visualize;
+
+            MPP.piano.renderer.visualize = function (n, c, vel) {
+                let co = colcache[c];
+                if (!co) {
+                    co = [c[1] + c[2], c[3] + c[4], c[5] + c[6]].map((x) => parseInt(x, 16));
+                    colcache[c] = co;
+                }
+
+                showNote(n.note, co, vel); // Show note on piano roll
+            };
+        });
+    }
+
+    $(initPianoRoll); // Initialize piano roll when document is ready
+})();
